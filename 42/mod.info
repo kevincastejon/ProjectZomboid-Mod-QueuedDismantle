@@ -1,0 +1,6 @@
+name=Queue Dismantle
+id=QueueDismantle
+modversion=1.0.0
+versionMin=42.20
+poster=poster.png
+description=Adds a separate Queue dismantle context submenu that appends vanilla in-world dismantling actions to the timed-action queue. The normal Disassemble command and Shift behavior are unchanged.
