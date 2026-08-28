@@ -215,7 +215,7 @@ function QueueDismantle.onFillWorldObjectContextMenu(player, context, worldObjec
     end
 
     local queueRoot = context:addOption(
-        getText("ContextMenu_QueueDismantle"),
+        "Queued Dismantle",
         playerObj,
         nil
     )
@@ -223,6 +223,30 @@ function QueueDismantle.onFillWorldObjectContextMenu(player, context, worldObjec
 
     local queueSubMenu = ISContextMenu:getNew(context)
     context:addSubMenu(queueRoot, queueSubMenu)
+
+    -- Move "Queue dismantle" directly after the vanilla "Disassemble" option.
+    local vanillaIndex = nil
+    local queueIndex = nil
+
+    for i, option in ipairs(context.options) do
+        if option == vanillaRoot then
+            vanillaIndex = i
+        elseif option == queueRoot then
+            queueIndex = i
+        end
+    end
+
+    if vanillaIndex and queueIndex then
+        table.remove(context.options, queueIndex)
+
+        -- If Queue Dismantle was located before Disassemble,
+        -- removing it shifts the vanilla index by one.
+        if queueIndex < vanillaIndex then
+            vanillaIndex = vanillaIndex - 1
+        end
+
+        table.insert(context.options, vanillaIndex + 1, queueRoot)
+    end
 
     for _, sourceOption in ipairs(vanillaOptions) do
         local sourceData = sourceOption.param1
