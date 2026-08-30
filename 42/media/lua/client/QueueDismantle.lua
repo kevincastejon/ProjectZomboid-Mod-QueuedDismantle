@@ -2,7 +2,7 @@ require "ISUI/ISContextMenu"
 require "ISUI/ISDisassembleMenu"
 require "ISUI/ISWorldObjectContextMenu"
 require "Moveables/ISMoveableSpriteProps"
-require "TimedActions/ISBaseTimedAction"
+require "TimedActions/ISQueueActionsAction"
 require "TimedActions/ISTimedActionQueue"
 
 QueueDismantle = QueueDismantle or {}
@@ -11,82 +11,6 @@ local MOD_TAG = "[QueueDismantle]"
 
 local function logError(message)
     print(MOD_TAG .. " " .. tostring(message))
-end
-
--- This zero-duration action expands one queued target into the same movement,
--- equipment and dismantling actions used by the vanilla Disassemble command.
---
--- It deliberately completes (rather than stops) when the target is no longer
--- valid. Stopping a timed action clears the actions behind it; completing it
--- lets the next queued dismantle target continue normally.
-QueueDismantleDeferredAction = ISBaseTimedAction:derive("QueueDismantleDeferredAction")
-
-function QueueDismantleDeferredAction:isValid()
-    return true
-end
-
-function QueueDismantleDeferredAction:isValidStart()
-    return true
-end
-
-function QueueDismantleDeferredAction:waitToStart()
-    return false
-end
-
-function QueueDismantleDeferredAction:discardAddedActions()
-    if self._isAddingActions and tonumber(self._numAddedActions) then
-        -- While the current action is in beginAddingActions()/endAddingActions(),
-        -- vanilla clear() removes only actions added by this action and preserves
-        -- everything that was already waiting behind it.
-        ISTimedActionQueue.clear(self.character)
-    end
-end
-
-function QueueDismantleDeferredAction:update()
-    -- Fallback used only if start() itself aborts unexpectedly.
-    self:discardAddedActions()
-    self._isAddingActions = nil
-    self._numAddedActions = nil
-    self:forceComplete()
-end
-
-function QueueDismantleDeferredAction:start()
-    self:beginAddingActions()
-
-    local ok, err = pcall(QueueDismantle.expandQueuedTarget, self.character, self.object)
-    if not ok then
-        self:discardAddedActions()
-        logError("Failed to expand queued dismantle target: " .. tostring(err))
-    end
-
-    self:endAddingActions()
-
-    -- Always complete, including when the target vanished, became invalid,
-    -- became unreachable, or no longer has the required tools available.
-    self:forceComplete()
-end
-
-function QueueDismantleDeferredAction:stop()
-    self._isAddingActions = nil
-    self._numAddedActions = nil
-    ISBaseTimedAction.stop(self)
-end
-
-function QueueDismantleDeferredAction:perform()
-    self._isAddingActions = nil
-    self._numAddedActions = nil
-    ISBaseTimedAction.perform(self)
-end
-
-function QueueDismantleDeferredAction:new(character, object)
-    local o = ISBaseTimedAction.new(self, character)
-    o.character = character
-    o.object = object
-    o.stopOnAim = false
-    o.stopOnWalk = false
-    o.stopOnRun = false
-    o.maxTime = -1
-    return o
 end
 
 local function isDismantleOptionData(data)
@@ -193,7 +117,13 @@ function QueueDismantle.queueTarget(playerObj, data)
         return
     end
 
-    ISTimedActionQueue.add(QueueDismantleDeferredAction:new(playerObj, data.object))
+    ISTimedActionQueue.add(
+        ISQueueActionsAction:new(
+            playerObj,
+            QueueDismantle.expandQueuedTarget,
+            data.object
+        )
+    )
 end
 
 function QueueDismantle.onFillWorldObjectContextMenu(player, context, worldObjects, test)
