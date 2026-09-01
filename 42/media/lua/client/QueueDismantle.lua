@@ -23,7 +23,6 @@ QueueDismantle = QueueDismantle or {}
 -- The exception is intentionally narrow: our own scrap action, missing object,
 -- >= 95% job progress, with at least one of our wrappers waiting behind it.
 -- ============================================================================
-local END_WINDOW_TAG = "[QueueDismantle][END-WINDOW-FIX]"
 local END_WINDOW_MIN_DELTA = 0.95
 local END_WINDOW_MAX_WAIT_TICKS = 30
 local pendingRestore = {}
@@ -91,9 +90,6 @@ local function installEndWindowFix()
                 actions = wrappers,
                 ticks = 0,
             }
-            print(END_WINDOW_TAG .. " preserve after authoritative disappearance"
-                .. " delta=" .. tostring(delta)
-                .. " wrappers=" .. tostring(#wrappers))
         end
 
         -- Keep vanilla semantics for the action that just became invalid. This
@@ -124,34 +120,22 @@ local function installEndWindowFix()
                     if q and q.queue and #q.queue == 0 and q.current == nil then
                         local actions = pending.actions
                         pendingRestore[character] = nil
-                        print(END_WINDOW_TAG .. " restore wrappers=" .. tostring(#actions)
-                            .. " afterTicks=" .. tostring(pending.ticks))
                         for _, action in ipairs(actions) do
                             ISTimedActionQueue.add(action)
                         end
                     else
-                        print(END_WINDOW_TAG .. " abort restore: Lua queue no longer empty")
                         pendingRestore[character] = nil
                     end
                 elseif pending.ticks >= END_WINDOW_MAX_WAIT_TICKS then
-                    print(END_WINDOW_TAG .. " abort restore: old Java action still present after "
-                        .. tostring(pending.ticks) .. " ticks")
                     pendingRestore[character] = nil
                 end
             end
         end
     end)
 
-    print(END_WINDOW_TAG .. " installed minDelta=" .. tostring(END_WINDOW_MIN_DELTA))
 end
 
 installEndWindowFix()
-
-local MOD_TAG = "[QueueDismantle]"
-
-local function logError(message)
-    print(MOD_TAG .. " " .. tostring(message))
-end
 
 local function isDismantleOptionData(data)
     return type(data) == "table"
