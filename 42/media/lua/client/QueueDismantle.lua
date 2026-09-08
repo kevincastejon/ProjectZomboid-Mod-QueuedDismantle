@@ -10,6 +10,30 @@ QueueDismantle = QueueDismantle or {}
 
 
 -- ============================================================================
+-- Queue wrapper with skip-on-invalid semantics
+--
+-- Vanilla ISQueueActionsAction force-stops itself when its callback adds no
+-- child actions. ISBaseTimedAction:stop() then resets the entire timed-action
+-- queue. For queued dismantling that is undesirable: a target may legitimately
+-- disappear or become invalid before its turn (duplicate target, another player
+-- destroyed it, etc.). Such an entry should simply be skipped.
+--
+-- This derived wrapper keeps vanilla's action-insertion mechanism unchanged,
+-- but always completes the wrapper after the callback, even when zero child
+-- actions were added. Real child timed actions keep all their vanilla validity
+-- and cancellation behaviour.
+-- ============================================================================
+QueueDismantleQueueAction = QueueDismantleQueueAction or ISQueueActionsAction:derive("QueueDismantleQueueAction")
+
+function QueueDismantleQueueAction:start()
+    self:beginAddingActions()
+    self.addActionsFunction(self.character, unpack(self.args))
+    self:endAddingActions()
+    self:forceComplete()
+end
+
+
+-- ============================================================================
 -- Dedicated-MP end-window fix
 --
 -- On a dedicated server the authoritative scrap can remove the object on the
@@ -260,7 +284,7 @@ function QueueDismantle.queueTarget(playerObj, data)
         return
     end
 
-    local wrapper = ISQueueActionsAction:new(
+    local wrapper = QueueDismantleQueueAction:new(
         playerObj,
         QueueDismantle.expandQueuedTarget,
         data.object
